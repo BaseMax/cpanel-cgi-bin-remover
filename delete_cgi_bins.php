@@ -4,12 +4,23 @@ ini_set('memory_limit', '256M');
 
 $rootDir = $_SERVER['DOCUMENT_ROOT'] ?? dirname(__FILE__);
 
-function deleteDirectory($dir) {
+/**
+ * Recursively deletes a directory and all its contents.
+ *
+ * @param string $dir Path to the directory to delete.
+ * @return bool True on success, false on failure.
+ */
+function deleteDirectory(string $dir): bool
+{
     if (!is_dir($dir)) {
         return false;
     }
 
     $items = scandir($dir);
+    if ($items === false) {
+        return false;
+    }
+
     foreach ($items as $item) {
         if ($item === '.' || $item === '..') {
             continue;
@@ -20,16 +31,33 @@ function deleteDirectory($dir) {
         if (is_dir($path)) {
             deleteDirectory($path);
         } else {
-            unlink($path);
+            if (!unlink($path)) {
+                error_log("Failed to delete file: $path");
+            }
         }
     }
 
-    rmdir($dir);
+    if (!rmdir($dir)) {
+        error_log("Failed to remove directory: $dir");
+        return false;
+    }
+
     return true;
 }
 
-function findAndDeleteCgiBinDirs($dir) {
+/**
+ * Recursively searches for directories named 'cgi-bin' and deletes them.
+ *
+ * @param string $dir Directory to start searching in.
+ */
+function findAndDeleteCgiBinDirs(string $dir): void
+{
     $items = scandir($dir);
+    if ($items === false) {
+        error_log("Failed to read directory: $dir");
+        return;
+    }
+
     foreach ($items as $item) {
         if ($item === '.' || $item === '..') {
             continue;
@@ -40,7 +68,12 @@ function findAndDeleteCgiBinDirs($dir) {
         if (is_dir($path)) {
             if (strcasecmp($item, 'cgi-bin') === 0) {
                 echo "Deleting directory: $path\n";
-                deleteDirectory($path);
+
+                if (deleteDirectory($path)) {
+                    echo "Successfully deleted: $path\n";
+                } else {
+                    echo "Failed to delete: $path\n";
+                }
             } else {
                 findAndDeleteCgiBinDirs($path);
             }
@@ -48,6 +81,8 @@ function findAndDeleteCgiBinDirs($dir) {
     }
 }
 
-echo "Scanning for 'cgi-bin' directories in: $rootDir\n";
+echo "Starting scan for 'cgi-bin' directories in: $rootDir\n";
+
 findAndDeleteCgiBinDirs($rootDir);
+
 echo "Done.\n";
